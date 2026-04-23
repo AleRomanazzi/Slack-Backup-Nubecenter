@@ -5,6 +5,16 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7;
 
+function shouldUseSecureCookies(): boolean {
+  if (process.env.AUTH_COOKIE_SECURE === "true") {
+    return true;
+  }
+  if (process.env.AUTH_COOKIE_SECURE === "false") {
+    return false;
+  }
+  return process.env.NODE_ENV === "production";
+}
+
 function getAuthSecret(): string {
   return process.env.AUTH_SECRET ?? "dev-secret-change-me";
 }
@@ -29,7 +39,7 @@ export async function createSession(userId: string) {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     sameSite: "lax",
     path: "/",
     expires: expiresAt,
@@ -48,7 +58,7 @@ export async function clearSession() {
 
   cookieStore.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     sameSite: "lax",
     path: "/",
     expires: new Date(0),
