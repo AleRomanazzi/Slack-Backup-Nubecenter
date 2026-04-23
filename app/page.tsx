@@ -63,7 +63,7 @@ export default async function Home({ searchParams }: HomeProps) {
       <aside className="sidebar" aria-label="Navegacion del canal">
         <div className="brand">
           <Image
-            src="/nubecenter-logo.svg"
+            src="/nubecenter-logo.png"
             alt="Nubecenter"
             width={220}
             height={48}

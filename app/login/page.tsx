@@ -41,7 +41,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="loginShell">
       <section className="loginCard" aria-label="Formulario de inicio de sesión">
         <Image
-          src="/nubecenter-logo.svg"
+          src="/nubecenter-logo.png"
           alt="Nubecenter"
           width={220}
           height={48}
