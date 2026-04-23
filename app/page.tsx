@@ -62,7 +62,7 @@ export default async function Home({ searchParams }: HomeProps) {
     <div className="appShell">
       <aside className="sidebar" aria-label="Navegacion del canal">
         <div className="brand">
-          <Image src="/nubecenter-logo.png" alt="Nubecenter" width={220} height={48} className="brandLogo" priority />
+          <Image src="/nubecenter-logo.svg" alt="Nubecenter" width={220} height={48} className="brandLogo" priority />
         </div>
         <div className="channelsBlock">
           <p className="channelsTitle">Channels</p>

@@ -36,7 +36,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="loginShell">
       <section className="loginCard" aria-label="Formulario de inicio de sesión">
-        <Image src="/nubecenter-logo.png" alt="Nubecenter" width={220} height={48} className="brandLogo" priority />
+        <Image src="/nubecenter-logo.svg" alt="Nubecenter" width={220} height={48} className="brandLogo" priority />
         <h1>Iniciar sesión</h1>
         <p className="subtle">Acceso exclusivo para administrador.</p>
         <form className="filters loginForm" action="/api/auth/login" method="post">
