@@ -1,5 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Slack export / data sensible
+/Nubecenter Slack export Mar 17 2026 - Apr 16 2026/
+/data/
+/backups/
 
+# secretos
+.env
+.env.local
 # dependencies
 /node_modules
 /.pnp

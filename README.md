@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Slack Backup Viewer (Nubecenter)
 
-## Getting Started
+Webapp en Next.js para visualizar el backup exportado de Slack (formato JSON nativo), enfocada en el canal `despliegue-openstack`.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 20+ recomendado
+- npm 10+
+- Tener esta estructura de carpetas:
+  - Proyecto Next.js en `slack-backup-viewer/`
+  - Export de Slack en `Nubecenter Slack export Mar 17 2026 - Apr 16 2026/`
+
+La app resuelve los datos desde filesystem usando esta ruta esperada (relativa a la raiz del proyecto):
+
+`./Nubecenter Slack export Mar 17 2026 - Apr 16 2026`
+
+## Ejecutar en local
 
 ```bash
+npm install
+npm run prisma:generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configurar login admin con Neon
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Copiar variables:
 
-## Learn More
+```bash
+cp .env.example .env
+```
 
-To learn more about Next.js, take a look at the following resources:
+2. Editar `DATABASE_URL` y `AUTH_SECRET` en `.env`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Crear tablas y seed inicial del admin:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run prisma:migrate -- --name init_auth
+npm run prisma:seed
+```
 
-## Deploy on Vercel
+Credenciales iniciales:
+- usuario: `admin`
+- password: `NubeCenter.2026` (o valor de `ADMIN_PASSWORD` en `.env`)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Funcionalidades implementadas (V1)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Vista tipo Slack con sidebar + timeline de mensajes.
+- Parseo de:
+  - `channels.json`
+  - `users.json`
+  - archivos diarios de `despliegue-openstack/*.json`
+- Resolucion de menciones `<@USER_ID>` a `@Nombre`.
+- Render de reacciones con contador.
+- Búsqueda por texto (`q`) con resaltado de coincidencias.
+- Login admin con sesión segura y rutas protegidas.
+- Base de accesibilidad:
+  - contraste alto,
+  - foco visible,
+  - etiquetas/landmarks semanticos,
+  - navegacion por teclado.
+
+## Scripts utiles
+
+```bash
+npm run lint
+npm run build
+npm run prisma:generate
+npm run prisma:migrate -- --name init_auth
+npm run prisma:seed
+```
+
+## Notas
+
+- Los canales `social` y `all-nubecenter` se excluyen del sidebar por configuración.
