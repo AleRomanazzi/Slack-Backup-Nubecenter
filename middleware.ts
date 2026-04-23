@@ -8,8 +8,9 @@ export function middleware(request: NextRequest) {
   const isApiAuthRoute = pathname.startsWith("/api/auth/");
   const isLoginPage = pathname === "/login";
   const isStaticAsset = pathname.startsWith("/_next/") || pathname.startsWith("/favicon.ico");
+  const isPublicFile = /\.[a-zA-Z0-9]+$/.test(pathname);
 
-  if (isApiAuthRoute || isStaticAsset) {
+  if (isApiAuthRoute || isStaticAsset || isPublicFile) {
     return NextResponse.next();
   }
 
