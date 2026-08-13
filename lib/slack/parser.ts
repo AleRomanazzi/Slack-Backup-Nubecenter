@@ -1,8 +1,8 @@
-import { existsSync, promises as fs } from "fs";
+import { existsSync, promises as fs, statSync } from "fs";
 import path from "path";
 import type { SlackChannelView, SlackMessage, SlackUser } from "@/lib/slack/types";
 
-const EXPORT_FOLDER_NAME = "Nubecenter Slack export Mar 17 2026 - Apr 16 2026";
+const EXPORT_FOLDER_PREFIX = "Nubecenter Slack export";
 const DEFAULT_CHANNEL = "despliegue-openstack";
 const HIDDEN_CHANNELS = new Set(["social", "all-nubecenter"]);
 
@@ -34,18 +34,39 @@ type RawMessage = {
   reactions?: Array<{ name?: string; users?: string[]; count?: number }>;
 };
 
-function getExportRoot(): string {
-  const inProject = path.join(process.cwd(), EXPORT_FOLDER_NAME);
-  if (existsSync(inProject)) {
-    return inProject;
+function isDataJsonFile(fileName: string): boolean {
+  return fileName.endsWith(".json") && !fileName.startsWith("._");
+}
+
+async function listExportRoots(): Promise<string[]> {
+  const searchBases = [process.cwd(), path.join(process.cwd(), "..")];
+  const found = new Map<string, number>();
+
+  for (const base of searchBases) {
+    if (!existsSync(base)) {
+      continue;
+    }
+
+    const entries = await fs.readdir(base, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith(EXPORT_FOLDER_PREFIX)) {
+        continue;
+      }
+
+      const exportRoot = path.resolve(base, entry.name);
+      const usersPath = path.join(exportRoot, "users.json");
+      if (!existsSync(usersPath)) {
+        continue;
+      }
+
+      const mtime = statSync(usersPath).mtimeMs;
+      found.set(exportRoot, mtime);
+    }
   }
 
-  const siblingOfProject = path.join(process.cwd(), "..", EXPORT_FOLDER_NAME);
-  if (existsSync(siblingOfProject)) {
-    return siblingOfProject;
-  }
-
-  return inProject;
+  return Array.from(found.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map(([exportRoot]) => exportRoot);
 }
 
 function formatDateKey(tsSeconds: number): string {
@@ -100,69 +121,115 @@ async function readJson<T>(absolutePath: string): Promise<T> {
   return JSON.parse(content) as T;
 }
 
-async function readUsers(exportRoot: string): Promise<Map<string, SlackUser>> {
-  const usersPath = path.join(exportRoot, "users.json");
-  const users = await readJson<RawUser[]>(usersPath);
+function toSlackUser(user: RawUser): SlackUser | null {
+  if (!user.id) {
+    return null;
+  }
 
+  const displayName = user.profile?.display_name?.trim() || "";
+  const realName = user.profile?.real_name?.trim() || "";
+
+  return {
+    id: user.id,
+    displayName: displayName || realName || user.name || user.id,
+    realName: realName || user.name || user.id,
+    username: user.name || user.id,
+    avatarUrl: user.profile?.image_72 ?? null,
+    deleted: Boolean(user.deleted),
+    isBot: Boolean(user.is_bot),
+  };
+}
+
+async function readMergedUsers(exportRoots: string[]): Promise<Map<string, SlackUser>> {
   const usersById = new Map<string, SlackUser>();
 
-  for (const user of users) {
-    if (!user.id) {
+  for (const exportRoot of exportRoots) {
+    const usersPath = path.join(exportRoot, "users.json");
+    if (!existsSync(usersPath)) {
       continue;
     }
 
-    const displayName = user.profile?.display_name?.trim() || "";
-    const realName = user.profile?.real_name?.trim() || "";
-
-    usersById.set(user.id, {
-      id: user.id,
-      displayName: displayName || realName || user.name || user.id,
-      realName: realName || user.name || user.id,
-      username: user.name || user.id,
-      avatarUrl: user.profile?.image_72 ?? null,
-      deleted: Boolean(user.deleted),
-      isBot: Boolean(user.is_bot),
-    });
+    const users = await readJson<RawUser[]>(usersPath);
+    for (const user of users) {
+      const mapped = toSlackUser(user);
+      if (mapped) {
+        usersById.set(mapped.id, mapped);
+      }
+    }
   }
 
   return usersById;
 }
 
-async function readChannels(exportRoot: string): Promise<string[]> {
-  const channelsPath = path.join(exportRoot, "channels.json");
-  const channels = await readJson<RawChannel[]>(channelsPath);
-  return channels
-    .map((channel) => channel.name?.trim())
-    .filter((name): name is string => Boolean(name))
-    .filter((name) => !HIDDEN_CHANNELS.has(name))
-    .sort((a, b) => a.localeCompare(b));
+async function readMergedChannels(exportRoots: string[]): Promise<{
+  names: string[];
+  metas: RawChannel[];
+}> {
+  const byName = new Map<string, RawChannel>();
+
+  for (const exportRoot of exportRoots) {
+    const channelsPath = path.join(exportRoot, "channels.json");
+    if (!existsSync(channelsPath)) {
+      continue;
+    }
+
+    const channels = await readJson<RawChannel[]>(channelsPath);
+    for (const channel of channels) {
+      const name = channel.name?.trim();
+      if (!name || HIDDEN_CHANNELS.has(name)) {
+        continue;
+      }
+      byName.set(name, channel);
+    }
+  }
+
+  const names = Array.from(byName.keys()).sort((a, b) => a.localeCompare(b));
+  return { names, metas: Array.from(byName.values()) };
+}
+
+async function collectChannelDayFiles(exportRoots: string[], channelName: string): Promise<string[]> {
+  const filesByDay = new Map<string, string>();
+
+  for (const exportRoot of exportRoots) {
+    const channelFolder = path.join(exportRoot, channelName);
+    if (!existsSync(channelFolder)) {
+      continue;
+    }
+
+    const files = (await fs.readdir(channelFolder)).filter(isDataJsonFile);
+    for (const fileName of files) {
+      filesByDay.set(fileName, path.join(channelFolder, fileName));
+    }
+  }
+
+  return Array.from(filesByDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, filePath]) => filePath);
 }
 
 export async function loadSlackChannelData(params?: {
   q?: string;
   channel?: string;
 }): Promise<SlackChannelView> {
-  const exportRoot = getExportRoot();
-  const channels = await readChannels(exportRoot);
-  const selectedChannel = params?.channel && channels.includes(params.channel) ? params.channel : DEFAULT_CHANNEL;
-  const channelFolder = path.join(exportRoot, selectedChannel);
-  const usersById = await readUsers(exportRoot);
-  const channelsPath = path.join(exportRoot, "channels.json");
-  const channelMetas = await readJson<RawChannel[]>(channelsPath);
-  const channelMeta = channelMetas.find((channel) => channel.name === selectedChannel) ?? null;
+  const exportRoots = await listExportRoots();
+  if (exportRoots.length === 0) {
+    throw new Error("No se encontró ninguna carpeta de export de Slack.");
+  }
 
-  const files = (await fs.readdir(channelFolder))
-    .filter((file) => file.endsWith(".json"))
-    .sort();
+  const { names: channels, metas: channelMetas } = await readMergedChannels(exportRoots);
+  const selectedChannel = params?.channel && channels.includes(params.channel) ? params.channel : DEFAULT_CHANNEL;
+  const usersById = await readMergedUsers(exportRoots);
+  const channelMeta = channelMetas.find((channel) => channel.name === selectedChannel) ?? null;
+  const dayFiles = await collectChannelDayFiles(exportRoots, selectedChannel);
 
   const messages: SlackMessage[] = [];
+  const seenIds = new Set<string>();
 
-  for (const fileName of files) {
-    const filePath = path.join(channelFolder, fileName);
+  for (const filePath of dayFiles) {
     const rawMessages = await readJson<RawMessage[]>(filePath);
 
     for (const message of rawMessages) {
-      if (!message.ts) {
+      if (!message.ts || seenIds.has(message.ts)) {
         continue;
       }
 
@@ -171,6 +238,7 @@ export async function loadSlackChannelData(params?: {
         continue;
       }
 
+      seenIds.add(message.ts);
       const user = message.user ? usersById.get(message.user) : undefined;
       const blockText = collectBlockText(message.blocks);
       const baseText = parseMentions(message.text ?? "", usersById);
@@ -203,10 +271,8 @@ export async function loadSlackChannelData(params?: {
   messages.sort((a, b) => a.timestampMs - b.timestampMs);
 
   const query = params?.q?.trim().toLowerCase() ?? "";
-
   const filteredMessages = messages.filter((message) => {
-    const textMatches = query ? message.searchableText.includes(query) : true;
-    return textMatches;
+    return query ? message.searchableText.includes(query) : true;
   });
 
   return {

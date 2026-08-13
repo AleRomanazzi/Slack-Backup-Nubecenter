@@ -8,11 +8,11 @@ Webapp en Next.js para visualizar el backup exportado de Slack (formato JSON nat
 - npm 10+
 - Tener esta estructura de carpetas:
   - Proyecto Next.js en `slack-backup-viewer/`
-  - Export de Slack en `Nubecenter Slack export Mar 17 2026 - Apr 16 2026/`
+  - Una o más carpetas de export al mismo nivel (o un nivel arriba):
+    - `Nubecenter Slack export Mar 17 2026 - Apr 16 2026/`
+    - `Nubecenter Slack export Apr 1 2026 - Aug 12 2026/`
 
-La app resuelve los datos desde filesystem usando esta ruta esperada (relativa a la raiz del proyecto):
-
-`./Nubecenter Slack export Mar 17 2026 - Apr 16 2026`
+La app detecta automáticamente todas las carpetas que empiezan con `Nubecenter Slack export`, fusiona usuarios/canales/mensajes y, si un día se repite, prioriza el export más reciente.
 
 ## Ejecutar en local
 
@@ -75,3 +75,5 @@ npm run prisma:seed
 ## Notas
 
 - Los canales `social` y `all-nubecenter` se excluyen del sidebar por configuración.
+- `openstack-interno` sí se muestra.
+- Ignora archivos `._*` y `.DS_Store` del export (metadatos de macOS).
